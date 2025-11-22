@@ -149,8 +149,7 @@ jobs:
         
     - name: Create namespace if not exists
       run: |
-        # Usar --validate=false para evitar problemas de DNS si el cluster no es accesible temporalmente
-        kubectl create namespace ${{ env.KUBERNETES_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f - --validate=false
+        kubectl create namespace ${{ env.KUBERNETES_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
         
     - name: Deploy to Kubernetes
       run: |
