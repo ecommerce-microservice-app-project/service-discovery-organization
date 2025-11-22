@@ -147,9 +147,14 @@ jobs:
         
         # Create temporary deployment file from infra repo
         cp infra/k8s/service-discovery/deployment.yaml deployment.tmp.yaml
+        
+        # Replace image name
         sed -i "s|<REGISTRY>/service-discovery:0.1.0|${IMAGE_NAME}|g" deployment.tmp.yaml
         
-        kubectl apply -f deployment.tmp.yaml -n ${{ env.KUBERNETES_NAMESPACE }}
+        # Replace namespace placeholder
+        sed -i "s|<NAMESPACE>|${{ env.KUBERNETES_NAMESPACE }}|g" deployment.tmp.yaml
+        
+        kubectl apply -f deployment.tmp.yaml
         
         # Cleanup
         rm deployment.tmp.yaml
