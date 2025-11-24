@@ -109,12 +109,19 @@ jobs:
         repository: ${{ secrets.INFRA_REPO }}
         path: infra
         
-    - name: Set up Cloud SDK
-      uses: google-github-actions/setup-gcloud@v1
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
       with:
-        service_account_key: ${{ secrets.GCP_CREDENTIALS_PROD }}
+        credentials_json: ${{ secrets.GCP_CREDENTIALS_PROD }}
+        
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      with:
         project_id: ${{ secrets.GCP_PROJECT_ID_PROD }}
-        export_default_credentials: true
+        
+    - name: Install gke-gcloud-auth-plugin
+      run: |
+        gcloud components install gke-gcloud-auth-plugin --quiet
         
     - name: Set up kubectl
       uses: azure/setup-kubectl@v3
@@ -154,10 +161,28 @@ jobs:
         # Replace namespace placeholder
         sed -i "s|<NAMESPACE>|${{ env.KUBERNETES_NAMESPACE }}|g" deployment.tmp.yaml
         
+        # Replace profile to prod
+        sed -i 's|value: "dev"|value: "prod"|g' deployment.tmp.yaml
+        
         kubectl apply -f deployment.tmp.yaml
         
         # Cleanup
         rm deployment.tmp.yaml
+        
+    - name: Check pod status before waiting
+      run: |
+        echo "=== Pod Status ==="
+        kubectl get pods -n ${{ env.KUBERNETES_NAMESPACE }} -l app=${{ env.SERVICE_NAME }} || true
+        echo ""
+        echo "=== Pod Events ==="
+        POD_NAME=$(kubectl get pods -n ${{ env.KUBERNETES_NAMESPACE }} -l app=${{ env.SERVICE_NAME }} -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+        if [ -n "$POD_NAME" ]; then
+          echo "Pod name: $POD_NAME"
+          kubectl describe pod $POD_NAME -n ${{ env.KUBERNETES_NAMESPACE }} || true
+          echo ""
+          echo "=== Pod Logs (last 50 lines) ==="
+          kubectl logs $POD_NAME -n ${{ env.KUBERNETES_NAMESPACE }} --tail=50 || true
+        fi
         
     - name: Wait for deployment
       run: |
