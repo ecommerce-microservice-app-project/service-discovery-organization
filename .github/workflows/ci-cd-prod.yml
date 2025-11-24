@@ -109,12 +109,15 @@ jobs:
         repository: ${{ secrets.INFRA_REPO }}
         path: infra
         
-    - name: Set up Cloud SDK
-      uses: google-github-actions/setup-gcloud@v1
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
       with:
-        service_account_key: ${{ secrets.GCP_CREDENTIALS_PROD }}
+        credentials_json: ${{ secrets.GCP_CREDENTIALS_PROD }}
+        
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      with:
         project_id: ${{ secrets.GCP_PROJECT_ID_PROD }}
-        export_default_credentials: true
         
     - name: Set up kubectl
       uses: azure/setup-kubectl@v3
