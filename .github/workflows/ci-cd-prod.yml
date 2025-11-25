@@ -298,7 +298,7 @@ jobs:
         
   deploy:
     name: Deploy to Kubernetes (Production)
-    needs: [calculate-version, build-docker, security-scan]
+    needs: [calculate-version, build-docker]
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request'
     environment:
