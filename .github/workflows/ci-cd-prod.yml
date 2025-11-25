@@ -212,49 +212,59 @@ jobs:
       VERSION: ${{ needs.calculate-version.outputs.version }}
     
     steps:
-    - name: Install Trivy
+    - name: Generate Trivy Report (JSON) - Always generate
+      id: trivy-json
       uses: aquasecurity/trivy-action@master
-      with:
-        trivy-version: 'latest'
-    
-    - name: Generate Trivy Report (JSON + HTML)
-      id: trivy-report
       continue-on-error: true
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+        format: 'json'
+        output: 'trivy-results.json'
+        severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+        exit-code: '0'
+        scanners: 'vuln'
+    
+    - name: Generate Trivy Report (HTML)
+      id: trivy-html
+      uses: aquasecurity/trivy-action@master
+      continue-on-error: true
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+        format: 'template'
+        template: '@contrib/html.tpl'
+        output: 'trivy-report.html'
+        severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+        exit-code: '0'
+        scanners: 'vuln'
+    
+    - name: Generate Trivy Report (Table/Text)
+      id: trivy-table
+      uses: aquasecurity/trivy-action@master
+      continue-on-error: true
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+        format: 'table'
+        output: 'trivy-report.txt'
+        severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+        exit-code: '0'
+        scanners: 'vuln'
+    
+    - name: Verify reports were generated
+      if: always()
       run: |
-        echo "Generando reportes de vulnerabilidades..."
-        IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
-        
-        # Generar reporte JSON primero (más confiable)
-        echo "Generando reporte JSON..."
-        trivy image --format json --output trivy-results.json \
-          --severity CRITICAL,HIGH,MEDIUM,LOW \
-          --exit-code 0 \
-          --scanners vuln \
-          "$IMAGE" || true
-        
-        # Generar reporte HTML
-        echo "Generando reporte HTML..."
-        trivy image --format template --template "@contrib/html.tpl" \
-          --output trivy-report.html \
-          --severity CRITICAL,HIGH,MEDIUM,LOW \
-          --exit-code 0 \
-          --scanners vuln \
-          "$IMAGE" || true
-        
-        # Si el HTML falla, generar un reporte simple en texto
-        if [ ! -f trivy-report.html ] || [ ! -s trivy-report.html ]; then
-          echo "Generando reporte de texto como fallback..."
-          trivy image --format table --output trivy-report.txt \
-            --severity CRITICAL,HIGH,MEDIUM,LOW \
-            --exit-code 0 \
-            --scanners vuln \
-            "$IMAGE" || true
-        fi
-        
-        # Verificar archivos generados
-        echo "=== Archivos generados ==="
-        ls -lh trivy-* || true
-        echo "=========================="
+        echo "=== Verificando archivos generados ==="
+        for file in trivy-results.json trivy-report.html trivy-report.txt; do
+          if [ -f "$file" ]; then
+            if [ -s "$file" ]; then
+              echo "✓ $file generado ($(wc -l < "$file" | tr -d ' ') líneas)"
+            else
+              echo "⚠ $file está vacío"
+            fi
+          else
+            echo "✗ $file no se generó"
+          fi
+        done
+        echo "====================================="
     
     - name: Upload Trivy Reports
       uses: actions/upload-artifact@v4
