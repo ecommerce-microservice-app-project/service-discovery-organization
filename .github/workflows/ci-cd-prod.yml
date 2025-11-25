@@ -212,22 +212,8 @@ jobs:
       VERSION: ${{ needs.calculate-version.outputs.version }}
     
     steps:
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-        severity: 'CRITICAL,HIGH'
-        exit-code: '1'
-    
-    - name: Upload Trivy results to GitHub Security
-      uses: github/codeql-action/upload-sarif@v4
-      if: always()
-      with:
-        sarif_file: 'trivy-results.sarif'
-    
-    - name: Generate Trivy Report (HTML)
+    - name: Generate Trivy Report (HTML) - Always generate report
+      id: trivy-report
       uses: aquasecurity/trivy-action@master
       continue-on-error: true
       with:
@@ -236,6 +222,7 @@ jobs:
         template: '@contrib/html.tpl'
         output: 'trivy-report.html'
         severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+        exit-code: '0'  # No bloquea, solo genera reporte
     
     - name: Upload Trivy Report
       uses: actions/upload-artifact@v4
@@ -244,6 +231,22 @@ jobs:
         name: trivy-security-report
         path: trivy-report.html
         retention-days: 30
+    
+    - name: Run Trivy vulnerability scanner (Strict - Blocks on CRITICAL/HIGH)
+      id: trivy-scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH'
+        exit-code: '1'  # Bloquea el pipeline si encuentra CRITICAL/HIGH
+    
+    - name: Upload Trivy results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v4
+      if: always() && steps.trivy-scan.outcome == 'success'
+      with:
+        sarif_file: 'trivy-results.sarif'
         
   deploy:
     name: Deploy to Kubernetes (Production)
