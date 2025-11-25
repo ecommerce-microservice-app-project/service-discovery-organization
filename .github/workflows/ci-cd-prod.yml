@@ -222,7 +222,24 @@ jobs:
         template: '@contrib/html.tpl'
         output: 'trivy-report.html'
         severity: 'CRITICAL,HIGH,MEDIUM,LOW'
-        exit-code: '0'  # No bloquea, solo genera reporte
+        exit-code: '0'
+        scanners: 'vuln'  # Solo escanear vulnerabilidades, no secrets (más rápido)
+    
+    - name: Verify report was generated
+      if: always()
+      run: |
+        if [ -f trivy-report.html ]; then
+          echo "✓ Reporte HTML generado"
+          ls -lh trivy-report.html
+          # Verificar que no esté vacío
+          if [ -s trivy-report.html ]; then
+            echo "✓ El reporte tiene contenido"
+          else
+            echo "⚠ El reporte está vacío"
+          fi
+        else
+          echo "✗ ERROR: El archivo trivy-report.html no se generó"
+        fi
     
     - name: Upload Trivy Report
       uses: actions/upload-artifact@v4
@@ -231,6 +248,7 @@ jobs:
         name: trivy-security-report
         path: trivy-report.html
         retention-days: 30
+        if-no-files-found: warn
     
     - name: Run Trivy vulnerability scanner (Strict - Blocks on CRITICAL/HIGH)
       id: trivy-scan
