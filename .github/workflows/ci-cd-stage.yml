@@ -87,10 +87,56 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+
+  security-scan:
+    name: Security Scan (Trivy) - Informative
+    needs: build-docker
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    
+    permissions:
+      contents: read
+      security-events: write
+    
+    steps:
+    - name: Run Trivy vulnerability scanner (Informative)
+      uses: aquasecurity/trivy-action@master
+      continue-on-error: true
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+        exit-code: '0'  # No bloquea el pipeline, solo reporta
+    
+    - name: Upload Trivy results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    - name: Generate Trivy Report (HTML)
+      uses: aquasecurity/trivy-action@master
+      continue-on-error: true
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+        format: 'template'
+        template: '@contrib/html.tpl'
+        output: 'trivy-report.html'
+        severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+        exit-code: '0'
+    
+    - name: Upload Trivy Report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: trivy-security-report-stage
+        path: trivy-report.html
+        retention-days: 30
         
   deploy:
     name: Deploy to Kubernetes (Stage)
-    needs: build-docker
+    needs: [build-docker, security-scan]
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request'
     
