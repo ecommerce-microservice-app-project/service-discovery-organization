@@ -181,7 +181,18 @@ jobs:
         
     - name: Configure kubectl
       run: |
+        echo "Configuring kubectl for cluster: ${{ secrets.AZURE_AKS_CLUSTER }}"
+        echo "Resource Group: ${{ secrets.AZURE_RESOURCE_GROUP }}"
+        
         az aks get-credentials --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} --name ${{ secrets.AZURE_AKS_CLUSTER }} --overwrite-existing
+        
+        # Verificar que la configuración funcionó
+        echo "Verifying kubectl connection..."
+        kubectl cluster-info
+        
+        # Verificar que podemos listar namespaces
+        echo "Testing kubectl access..."
+        kubectl get namespaces || echo "Warning: Could not list namespaces"
         
     - name: Create namespace if not exists
       run: |
