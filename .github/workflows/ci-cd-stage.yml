@@ -199,6 +199,13 @@ jobs:
         
         kubectl apply -f deployment.tmp.yaml
         
+        # Force remove serviceAccountName and tolerations from existing deployment (kubectl apply doesn't remove fields)
+        # This ensures the deployment doesn't reference non-existent ServiceAccounts or production-only tolerations
+        kubectl patch deployment/${{ env.SERVICE_NAME }} -n ${{ env.KUBERNETES_NAMESPACE }} --type=json -p='[
+          {"op": "remove", "path": "/spec/template/spec/serviceAccountName"},
+          {"op": "remove", "path": "/spec/template/spec/tolerations"}
+        ]' || true
+        
         # Cleanup
         rm deployment.tmp.yaml
         
