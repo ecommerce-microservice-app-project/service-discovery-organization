@@ -194,7 +194,7 @@ jobs:
         # Replace namespace placeholder
         sed -i "s|<NAMESPACE>|${{ env.KUBERNETES_NAMESPACE }}|g" deployment.tmp.yaml
         
-        # Remove serviceAccountName for stage (RBAC not used in stage)
+        # Remove serviceAccountName (RBAC removed)
         sed -i '/serviceAccountName:/d' deployment.tmp.yaml
         
         kubectl apply -f deployment.tmp.yaml
