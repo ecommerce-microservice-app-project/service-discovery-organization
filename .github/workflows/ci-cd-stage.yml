@@ -197,31 +197,8 @@ jobs:
         # Remove serviceAccountName (RBAC removed)
         sed -i '/serviceAccountName:/d' deployment.tmp.yaml
         
-        # AGGRESSIVE FIX: If deployment exists and has serviceAccountName, DELETE it completely
-        # This guarantees no old fields remain
-        if kubectl get deployment/${{ env.SERVICE_NAME }} -n ${{ env.KUBERNETES_NAMESPACE }} &>/dev/null; then
-          CURRENT_SA=$(kubectl get deployment/${{ env.SERVICE_NAME }} -n ${{ env.KUBERNETES_NAMESPACE }} -o jsonpath='{.spec.template.spec.serviceAccountName}' 2>/dev/null || echo "")
-          if [ -n "$CURRENT_SA" ]; then
-            echo "⚠️  Deployment has serviceAccountName: $CURRENT_SA"
-            echo "🗑️  DELETING deployment to remove all old fields..."
-            kubectl delete deployment/${{ env.SERVICE_NAME }} -n ${{ env.KUBERNETES_NAMESPACE }} --wait=false || true
-            echo "⏳ Waiting for deployment to be fully deleted..."
-            sleep 5
-          fi
-        fi
-        
-        # Apply clean deployment (without serviceAccountName)
+        # Apply deployment (without serviceAccountName)
         kubectl apply -f deployment.tmp.yaml
-        
-        # Final verification
-        echo "✅ Verifying deployment spec..."
-        FINAL_SA=$(kubectl get deployment/${{ env.SERVICE_NAME }} -n ${{ env.KUBERNETES_NAMESPACE }} -o jsonpath='{.spec.template.spec.serviceAccountName}' 2>/dev/null || echo "")
-        if [ -n "$FINAL_SA" ]; then
-          echo "❌ ERROR: serviceAccountName still present: $FINAL_SA"
-          exit 1
-        else
-          echo "✅ No serviceAccountName - deployment is clean!"
-        fi
         
         # Cleanup
         rm deployment.tmp.yaml
