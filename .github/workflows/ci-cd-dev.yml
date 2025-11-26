@@ -215,27 +215,31 @@ jobs:
         # Remove serviceAccountName (RBAC removed)
         sed -i '/serviceAccountName:/d' deployment.tmp.yaml
         
-        # First, try to remove serviceAccountName and tolerations from existing deployment if it exists
-        # kubectl apply doesn't remove fields, so we need to patch first
+        # AGGRESSIVE FIX: If deployment exists and has serviceAccountName, DELETE it completely
+        # This guarantees no old fields remain
         if kubectl get deployment/${{ env.SERVICE_NAME }} -n ${{ env.KUBERNETES_NAMESPACE }} &>/dev/null; then
-          echo "Removing serviceAccountName and tolerations from existing deployment..."
-          kubectl patch deployment/${{ env.SERVICE_NAME }} -n ${{ env.KUBERNETES_NAMESPACE }} --type=json -p='[
-            {"op": "remove", "path": "/spec/template/spec/serviceAccountName"},
-            {"op": "remove", "path": "/spec/template/spec/tolerations"}
-          ]' || echo "Warning: Could not patch deployment (may not have these fields)"
+          CURRENT_SA=$(kubectl get deployment/${{ env.SERVICE_NAME }} -n ${{ env.KUBERNETES_NAMESPACE }} -o jsonpath='{.spec.template.spec.serviceAccountName}' 2>/dev/null || echo "")
+          if [ -n "$CURRENT_SA" ]; then
+            echo "⚠️  Deployment has serviceAccountName: $CURRENT_SA"
+            echo "🗑️  DELETING deployment to remove all old fields..."
+            kubectl delete deployment/${{ env.SERVICE_NAME }} -n ${{ env.KUBERNETES_NAMESPACE }} --wait=false || true
+            echo "⏳ Waiting for deployment to be fully deleted..."
+            sleep 5
+          fi
         fi
         
+        # Apply clean deployment (without serviceAccountName)
         kubectl apply -f deployment.tmp.yaml
         
-        # Ensure serviceAccountName and tolerations are removed after apply (in case they were re-added)
-        kubectl patch deployment/${{ env.SERVICE_NAME }} -n ${{ env.KUBERNETES_NAMESPACE }} --type=json -p='[
-          {"op": "remove", "path": "/spec/template/spec/serviceAccountName"},
-          {"op": "remove", "path": "/spec/template/spec/tolerations"}
-        ]' || true
-        
-        # Verify that serviceAccountName was removed
-        echo "Verifying deployment spec..."
-        kubectl get deployment/${{ env.SERVICE_NAME }} -n ${{ env.KUBERNETES_NAMESPACE }} -o jsonpath='{.spec.template.spec.serviceAccountName}' && echo " (serviceAccountName found - this may cause issues)" || echo "✓ No serviceAccountName (correct)"
+        # Final verification
+        echo "✅ Verifying deployment spec..."
+        FINAL_SA=$(kubectl get deployment/${{ env.SERVICE_NAME }} -n ${{ env.KUBERNETES_NAMESPACE }} -o jsonpath='{.spec.template.spec.serviceAccountName}' 2>/dev/null || echo "")
+        if [ -n "$FINAL_SA" ]; then
+          echo "❌ ERROR: serviceAccountName still present: $FINAL_SA"
+          exit 1
+        else
+          echo "✅ No serviceAccountName - deployment is clean!"
+        fi
         
         # Cleanup
         rm deployment.tmp.yaml
