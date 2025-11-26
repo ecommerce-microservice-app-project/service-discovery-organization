@@ -1,4 +1,4 @@
-# Service Discovery (Eureka Server).
+# Service Discovery (Eureka Server)
 
 ##  Descripción
 
